@@ -1,0 +1,142 @@
+openapi: 3.1.0
+info:
+  title: ProManage SaaS API
+  version: 1.0.0
+  description: REST API for multi-tenant project & task management with AI features.
+servers:
+  - url: https://api.promanage.sa/v1
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Tenant:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        plan: { type: string, enum: [trial, basic, pro, enterprise] }
+    Project:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        status: { type: string, enum: [draft, active, completed, archived] }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+    Task:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        title: { type: string }
+        status: { type: string, enum: [todo, in_progress, review, done] }
+        priority: { type: string, enum: [low, medium, high, urgent] }
+        assignees: { type: array, items: { type: string, format: uuid } }
+        dueDate: { type: string, format: date }
+        tags: { type: array, items: { type: string } }
+paths:
+  /auth/login:
+    post:
+      summary: Login with email/password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        "200":
+          description: JWT tokens
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken: { type: string }
+                  refreshToken: { type: string }
+  /tenants:
+    post:
+      summary: Create tenant (control plane)
+      responses: { "201": { description: Created } }
+    get:
+      summary: List tenants
+      responses: { "200": { description: OK } }
+  /projects:
+    get:
+      summary: List projects
+      responses: { "200": { description: OK } }
+    post:
+      summary: Create project
+      responses: { "201": { description: Created } }
+  /projects/{projectId}:
+    parameters:
+      - in: path
+        name: projectId
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Get project
+      responses: { "200": { description: OK } }
+    patch:
+      summary: Update project
+      responses: { "200": { description: OK } }
+    delete:
+      summary: Delete project
+      responses: { "204": { description: No Content } }
+  /tasks:
+    get:
+      summary: List tasks (with filters)
+      responses: { "200": { description: OK } }
+    post:
+      summary: Create task
+      responses: { "201": { description: Created } }
+  /tasks/{taskId}:
+    parameters:
+      - in: path
+        name: taskId
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Get task
+      responses: { "200": { description: OK } }
+    patch:
+      summary: Update task
+      responses: { "200": { description: OK } }
+    delete:
+      summary: Delete task
+      responses: { "204": { description: No Content } }
+  /ai/tasks/suggestions:
+    post:
+      summary: Generate task suggestions for a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                projectBrief: { type: string }
+                maxItems: { type: integer, default: 10 }
+      responses:
+        "200": { description: Suggestions returned }
+  /ai/tasks/deadline-prediction:
+    post:
+      summary: Predict suitable deadline for a task
+      responses: { "200": { description: Prediction returned } }
+  /ai/tasks/auto-prioritize:
+    post:
+      summary: Auto-prioritize a list of tasks
+      responses: { "200": { description: Priorities returned } }
+  /ai/projects/insights:
+    post:
+      summary: Generate insights & risks for a project
+      responses: { "200": { description: Insights returned } }

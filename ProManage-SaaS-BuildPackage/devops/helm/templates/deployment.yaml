@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: promanage
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: promanage }
+  template:
+    metadata:
+      labels: { app: promanage }
+    spec:
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports: [{ containerPort: 3000 }]
+          env:
+            - name: DATABASE_URL
+              value: "{{ .Values.env.DATABASE_URL }}"
+            - name: REDIS_URL
+              value: "{{ .Values.env.REDIS_URL }}"
+            - name: S3_ENDPOINT
+              value: "{{ .Values.env.S3_ENDPOINT }}"
+            - name: JWT_SECRET
+              value: "{{ .Values.env.JWT_SECRET }}"
