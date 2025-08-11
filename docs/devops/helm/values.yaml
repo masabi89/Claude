@@ -1,0 +1,27 @@
+image:
+  repository: registry.example.com/promanage
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: app.promanage.sa
+      paths:
+        - path: /
+          pathType: Prefix
+tls:
+  - secretName: promanage-tls
+    hosts:
+      - app.promanage.sa
+
+env:
+  DATABASE_URL: "postgres://user:pass@db:5432/control_plane"
+  REDIS_URL: "redis://redis:6379"
+  S3_ENDPOINT: "https://s3.amazonaws.com"
+  JWT_SECRET: "CHANGE_ME"

@@ -1,0 +1,331 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Control Plane Database Models
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  plan      Plan     @default(TRIAL)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  orgUsers      OrgUser[]
+  subscriptions Subscription[]
+  auditLogs     AuditLog[]
+
+  @@map("tenants")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  password  String?
+  avatar    String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  orgUsers  OrgUser[]
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+model OrgUser {
+  tenantId String @map("tenant_id")
+  userId   String @map("user_id")
+  role     Role
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, userId])
+  @@map("org_users")
+}
+
+model Subscription {
+  id                String             @id @default(uuid())
+  tenantId          String             @map("tenant_id")
+  plan              Plan
+  status            SubscriptionStatus @default(TRIAL)
+  currentPeriodEnd  DateTime?          @map("current_period_end")
+  cancelAtPeriodEnd Boolean            @default(false) @map("cancel_at_period_end")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+model AuditLog {
+  id       BigInt  @id @default(autoincrement())
+  tenantId String? @map("tenant_id")
+  actorId  String? @map("actor_id")
+  action   String
+  entity   String
+  entityId String? @map("entity_id")
+  meta     Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+  actor  User?   @relation(fields: [actorId], references: [id])
+
+  @@map("audit_log")
+}
+
+// Tenant Database Models (These will be created in separate tenant databases)
+
+model Project {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  status      ProjectStatus @default(DRAFT)
+  startDate   DateTime?     @map("start_date")
+  endDate     DateTime?     @map("end_date")
+  ownerId     String        @map("owner_id")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  tasks       Task[]
+  members     ProjectMember[]
+  customFields CustomField[]
+  files       File[] @relation("ProjectFiles")
+
+  @@map("projects")
+}
+
+model ProjectMember {
+  projectId String @map("project_id")
+  userId    String @map("user_id")
+  role      ProjectRole
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, userId])
+  @@map("project_members")
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  projectId   String     @map("project_id")
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  priority    Priority   @default(MEDIUM)
+  dueDate     DateTime?  @map("due_date")
+  createdById String     @map("created_by_id")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignees TaskAssignee[]
+  subtasks  Subtask[]
+  comments  Comment[]
+  files     File[] @relation("TaskFiles")
+  tags      TaskTag[]
+
+  @@map("tasks")
+}
+
+model TaskAssignee {
+  taskId     String @map("task_id")
+  userId     String @map("user_id")
+  assignedAt DateTime @default(now()) @map("assigned_at")
+
+  // Relations
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@map("task_assignees")
+}
+
+model Subtask {
+  id          String     @id @default(uuid())
+  taskId      String     @map("task_id")
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  createdById String     @map("created_by_id")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("subtasks")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  taskId    String   @map("task_id")
+  content   String
+  authorId  String   @map("author_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+}
+
+model File {
+  id         String    @id @default(uuid())
+  filename   String
+  originalName String  @map("original_name")
+  mimeType   String    @map("mime_type")
+  size       Int
+  url        String
+  entityType EntityType @map("entity_type")
+  entityId   String    @map("entity_id")
+  uploadedById String  @map("uploaded_by_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  project Project? @relation("ProjectFiles", fields: [entityId], references: [id], onDelete: Cascade, map: "files_project_fkey")
+  task    Task?    @relation("TaskFiles", fields: [entityId], references: [id], onDelete: Cascade, map: "files_task_fkey")
+
+  @@map("files")
+}
+
+model CustomField {
+  id        String          @id @default(uuid())
+  projectId String          @map("project_id")
+  name      String
+  type      CustomFieldType
+  options   Json?           // For select/multi-select fields
+  required  Boolean         @default(false)
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("custom_fields")
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  name      String
+  color     String   @default("#3B82F6")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  tasks TaskTag[]
+
+  @@map("tags")
+}
+
+model TaskTag {
+  taskId String @map("task_id")
+  tagId  String @map("tag_id")
+
+  // Relations
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, tagId])
+  @@map("task_tags")
+}
+
+model SavedView {
+  id        String   @id @default(uuid())
+  name      String
+  filters   Json
+  columns   Json
+  sorting   Json?
+  userId    String   @map("user_id")
+  isPublic  Boolean  @default(false) @map("is_public")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("saved_views")
+}
+
+// Enums
+
+enum Plan {
+  TRIAL
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+enum Role {
+  SUPER_ADMIN
+  ORG_ADMIN
+  PROJECT_MANAGER
+  TEAM_MEMBER
+  CLIENT
+}
+
+enum ProjectRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIAL
+  PAST_DUE
+  CANCELED
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum EntityType {
+  PROJECT
+  TASK
+}
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  SELECT
+  MULTI_SELECT
+  BOOLEAN
+}
+
