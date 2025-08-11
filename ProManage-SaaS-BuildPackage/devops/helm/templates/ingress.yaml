@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: promanage
+  annotations:
+    kubernetes.io/tls-acme: "true"
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+    - secretName: {{ (index .Values.tls 0).secretName }}
+      hosts: {{ toYaml (index .Values.tls 0).hosts | nindent 6 }}
+  rules:
+    - host: {{ (index .Values.ingress.hosts 0).host }}
+      http:
+        paths:
+          - path: /
+            pathType: {{ (index (index .Values.ingress.hosts 0).paths 0).pathType }}
+            backend:
+              service:
+                name: promanage
+                port: { number: 80 }
