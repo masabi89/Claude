@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -16,7 +16,7 @@ model Tenant {
   id        String   @id @default(uuid())
   name      String
   slug      String   @unique
-  plan      Plan     @default(TRIAL)
+  plan      String   @default("TRIAL") // TRIAL, BASIC, PRO, ENTERPRISE
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -48,7 +48,7 @@ model User {
 model OrgUser {
   tenantId String @map("tenant_id")
   userId   String @map("user_id")
-  role     Role
+  role     String // ORG_ADMIN, ORG_MEMBER, PROJECT_MANAGER, DEVELOPER, VIEWER
   joinedAt DateTime @default(now()) @map("joined_at")
 
   // Relations
@@ -60,14 +60,14 @@ model OrgUser {
 }
 
 model Subscription {
-  id                String             @id @default(uuid())
-  tenantId          String             @map("tenant_id")
-  plan              Plan
-  status            SubscriptionStatus @default(TRIAL)
-  currentPeriodEnd  DateTime?          @map("current_period_end")
-  cancelAtPeriodEnd Boolean            @default(false) @map("cancel_at_period_end")
-  createdAt         DateTime           @default(now()) @map("created_at")
-  updatedAt         DateTime           @updatedAt @map("updated_at")
+  id                String   @id @default(uuid())
+  tenantId          String   @map("tenant_id")
+  plan              String   // TRIAL, BASIC, PRO, ENTERPRISE
+  status            String   @default("TRIAL") // TRIAL, ACTIVE, PAST_DUE, CANCELED, UNPAID
+  currentPeriodEnd  DateTime? @map("current_period_end")
+  cancelAtPeriodEnd Boolean  @default(false) @map("cancel_at_period_end")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   // Relations
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -76,13 +76,13 @@ model Subscription {
 }
 
 model AuditLog {
-  id       BigInt  @id @default(autoincrement())
-  tenantId String? @map("tenant_id")
-  actorId  String? @map("actor_id")
-  action   String
-  entity   String
-  entityId String? @map("entity_id")
-  meta     Json?
+  id        Int      @id @default(autoincrement())
+  tenantId  String?  @map("tenant_id")
+  actorId   String?  @map("actor_id")
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  meta      String?  // JSON as string for SQLite
   createdAt DateTime @default(now()) @map("created_at")
 
   // Relations
@@ -95,237 +95,140 @@ model AuditLog {
 // Tenant Database Models (These will be created in separate tenant databases)
 
 model Project {
-  id          String        @id @default(uuid())
+  id          String   @id @default(uuid())
   name        String
   description String?
-  status      ProjectStatus @default(DRAFT)
-  startDate   DateTime?     @map("start_date")
-  endDate     DateTime?     @map("end_date")
-  ownerId     String        @map("owner_id")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  status      String   @default("ACTIVE") // ACTIVE, ON_HOLD, COMPLETED, ARCHIVED
+  priority    String   @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  startDate   DateTime? @map("start_date")
+  endDate     DateTime? @map("end_date")
+  ownerId     String   @map("owner_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
-  tasks       Task[]
-  members     ProjectMember[]
-  customFields CustomField[]
-  files       File[] @relation("ProjectFiles")
+  tasks        Task[]
+  projectUsers ProjectUser[]
+  comments     Comment[]
+  files        File[]
+  customFields CustomFieldValue[]
 
   @@map("projects")
 }
 
-model ProjectMember {
-  projectId String @map("project_id")
-  userId    String @map("user_id")
-  role      ProjectRole
+model Task {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  status      String   @default("TODO") // TODO, IN_PROGRESS, IN_REVIEW, DONE, BLOCKED
+  priority    String   @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  dueDate     DateTime? @map("due_date")
+  assigneeId  String?  @map("assignee_id")
+  projectId   String   @map("project_id")
+  parentId    String?  @map("parent_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  project      Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent       Task?                @relation("TaskSubtasks", fields: [parentId], references: [id])
+  subtasks     Task[]               @relation("TaskSubtasks")
+  comments     Comment[]
+  files        File[]
+  customFields CustomFieldValue[]
+  timeEntries  TimeEntry[]
+
+  @@map("tasks")
+}
+
+model ProjectUser {
+  projectId String   @map("project_id")
+  userId    String   @map("user_id")
+  role      String
   joinedAt  DateTime @default(now()) @map("joined_at")
 
   // Relations
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, userId])
-  @@map("project_members")
-}
-
-model Task {
-  id          String     @id @default(uuid())
-  projectId   String     @map("project_id")
-  title       String
-  description String?
-  status      TaskStatus @default(TODO)
-  priority    Priority   @default(MEDIUM)
-  dueDate     DateTime?  @map("due_date")
-  createdById String     @map("created_by_id")
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
-
-  // Relations
-  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignees TaskAssignee[]
-  subtasks  Subtask[]
-  comments  Comment[]
-  files     File[] @relation("TaskFiles")
-  tags      TaskTag[]
-
-  @@map("tasks")
-}
-
-model TaskAssignee {
-  taskId     String @map("task_id")
-  userId     String @map("user_id")
-  assignedAt DateTime @default(now()) @map("assigned_at")
-
-  // Relations
-  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
-  @@id([taskId, userId])
-  @@map("task_assignees")
-}
-
-model Subtask {
-  id          String     @id @default(uuid())
-  taskId      String     @map("task_id")
-  title       String
-  description String?
-  status      TaskStatus @default(TODO)
-  createdById String     @map("created_by_id")
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
-
-  // Relations
-  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
-  @@map("subtasks")
+  @@map("project_users")
 }
 
 model Comment {
   id        String   @id @default(uuid())
-  taskId    String   @map("task_id")
   content   String
   authorId  String   @map("author_id")
+  projectId String?  @map("project_id")
+  taskId    String?  @map("task_id")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task    Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@map("comments")
 }
 
 model File {
-  id         String    @id @default(uuid())
-  filename   String
-  originalName String  @map("original_name")
-  mimeType   String    @map("mime_type")
+  id         String   @id @default(uuid())
+  name       String
+  path       String
   size       Int
-  url        String
-  entityType EntityType @map("entity_type")
-  entityId   String    @map("entity_id")
-  uploadedById String  @map("uploaded_by_id")
-  createdAt  DateTime  @default(now()) @map("created_at")
+  mimeType   String   @map("mime_type")
+  uploaderId String   @map("uploader_id")
+  projectId  String?  @map("project_id")
+  taskId     String?  @map("task_id")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   // Relations
-  project Project? @relation("ProjectFiles", fields: [entityId], references: [id], onDelete: Cascade, map: "files_project_fkey")
-  task    Task?    @relation("TaskFiles", fields: [entityId], references: [id], onDelete: Cascade, map: "files_task_fkey")
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task    Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@map("files")
 }
 
 model CustomField {
-  id        String          @id @default(uuid())
-  projectId String          @map("project_id")
+  id        String   @id @default(uuid())
   name      String
-  type      CustomFieldType
-  options   Json?           // For select/multi-select fields
-  required  Boolean         @default(false)
-  createdAt DateTime        @default(now()) @map("created_at")
+  type      String   // TEXT, NUMBER, DATE, BOOLEAN, SELECT, MULTI_SELECT
+  required  Boolean  @default(false)
+  options   String?  // JSON as string for SQLite
+  createdAt DateTime @default(now()) @map("created_at")
 
   // Relations
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  values CustomFieldValue[]
 
   @@map("custom_fields")
 }
 
-model Tag {
-  id        String   @id @default(uuid())
-  name      String
-  color     String   @default("#3B82F6")
-  createdAt DateTime @default(now()) @map("created_at")
+model CustomFieldValue {
+  id            String  @id @default(uuid())
+  customFieldId String  @map("custom_field_id")
+  projectId     String? @map("project_id")
+  taskId        String? @map("task_id")
+  value         String  // JSON as string for SQLite
 
   // Relations
-  tasks TaskTag[]
+  customField CustomField @relation(fields: [customFieldId], references: [id], onDelete: Cascade)
+  project     Project?    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task        Task?       @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
-  @@map("tags")
+  @@map("custom_field_values")
 }
 
-model TaskTag {
-  taskId String @map("task_id")
-  tagId  String @map("tag_id")
+model TimeEntry {
+  id          String   @id @default(uuid())
+  description String?
+  hours       Float
+  date        DateTime
+  userId      String   @map("user_id")
+  taskId      String   @map("task_id")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   // Relations
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
-  @@id([taskId, tagId])
-  @@map("task_tags")
-}
-
-model SavedView {
-  id        String   @id @default(uuid())
-  name      String
-  filters   Json
-  columns   Json
-  sorting   Json?
-  userId    String   @map("user_id")
-  isPublic  Boolean  @default(false) @map("is_public")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@map("saved_views")
-}
-
-// Enums
-
-enum Plan {
-  TRIAL
-  BASIC
-  PRO
-  ENTERPRISE
-}
-
-enum Role {
-  SUPER_ADMIN
-  ORG_ADMIN
-  PROJECT_MANAGER
-  TEAM_MEMBER
-  CLIENT
-}
-
-enum ProjectRole {
-  OWNER
-  ADMIN
-  MEMBER
-  VIEWER
-}
-
-enum SubscriptionStatus {
-  ACTIVE
-  TRIAL
-  PAST_DUE
-  CANCELED
-}
-
-enum ProjectStatus {
-  DRAFT
-  ACTIVE
-  COMPLETED
-  ARCHIVED
-}
-
-enum TaskStatus {
-  TODO
-  IN_PROGRESS
-  REVIEW
-  DONE
-}
-
-enum Priority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-}
-
-enum EntityType {
-  PROJECT
-  TASK
-}
-
-enum CustomFieldType {
-  TEXT
-  NUMBER
-  DATE
-  SELECT
-  MULTI_SELECT
-  BOOLEAN
+  @@map("time_entries")
 }
 

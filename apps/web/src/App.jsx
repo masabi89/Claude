@@ -7,6 +7,8 @@ import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
+import ProjectsPage from './pages/dashboard/ProjectsPage';
+import TasksPage from './pages/dashboard/TasksPage';
 import './App.css';
 
 // Create a client
@@ -65,8 +67,8 @@ function App() {
               <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
               
               {/* Placeholder routes for future implementation */}
-              <Route path="projects" element={<ProtectedRoute><div className="p-8 text-center"><h1 className="text-2xl font-bold">Projects Page</h1><p className="text-gray-600 mt-2">Coming soon...</p></div></ProtectedRoute>} />
-              <Route path="tasks" element={<ProtectedRoute><div className="p-8 text-center"><h1 className="text-2xl font-bold">Tasks Page</h1><p className="text-gray-600 mt-2">Coming soon...</p></div></ProtectedRoute>} />
+              <Route path="projects" element={<ProtectedRoute><ProjectsPage /></ProtectedRoute>} />
+              <Route path="tasks" element={<ProtectedRoute><TasksPage /></ProtectedRoute>} />
               <Route path="team" element={<ProtectedRoute><div className="p-8 text-center"><h1 className="text-2xl font-bold">Team Page</h1><p className="text-gray-600 mt-2">Coming soon...</p></div></ProtectedRoute>} />
               <Route path="analytics" element={<ProtectedRoute><div className="p-8 text-center"><h1 className="text-2xl font-bold">Analytics Page</h1><p className="text-gray-600 mt-2">Coming soon...</p></div></ProtectedRoute>} />
               <Route path="admin" element={<ProtectedRoute><div className="p-8 text-center"><h1 className="text-2xl font-bold">Admin Panel</h1><p className="text-gray-600 mt-2">Coming soon...</p></div></ProtectedRoute>} />

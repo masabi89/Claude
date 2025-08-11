@@ -24,7 +24,7 @@ export class AuthService {
       },
     });
 
-    if (!user || !user.isActive) {
+    if (!user || !user.isActive || !user.password) {
       return null;
     }
 
@@ -226,8 +226,8 @@ export class AuthService {
       where: { id: userId },
     });
 
-    if (!user) {
-      throw new BadRequestException('User not found');
+    if (!user || !user.password) {
+      throw new BadRequestException('User not found or password not set');
     }
 
     const isCurrentPasswordValid = await bcrypt.compare(

@@ -19,9 +19,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   async onModuleInit() {
     try {
       await this.$connect();
-      console.log('Database connected successfully');
+      console.log('✅ Database connected successfully');
     } catch (error) {
-      console.error('Database connection failed:', error);
+      console.error('❌ Database connection failed:', error);
       // For development, continue without database
     }
   }
@@ -60,7 +60,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
    * For development, just return success
    */
   async createTenantDatabase(tenantId: string): Promise<void> {
-    console.log(`Creating tenant database for: ${tenantId}`);
+    console.log(`📊 Creating tenant database for: ${tenantId}`);
     // For development, we'll skip actual database creation
     return Promise.resolve();
   }
@@ -69,7 +69,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
    * Remove a tenant database (use with caution!)
    */
   async removeTenantDatabase(tenantId: string): Promise<void> {
-    console.log(`Removing tenant database for: ${tenantId}`);
+    console.log(`🗑️ Removing tenant database for: ${tenantId}`);
     
     // Disconnect tenant client if exists
     if (this.tenantClients.has(tenantId)) {
